@@ -1,6 +1,8 @@
 package net.corwis.kissenpvp;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
+import net.corwis.kissenpvp.suffix.SuffixCommand;
+import net.corwis.kissenpvp.suffix.SuffixManager;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -16,16 +18,24 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class Visual extends JavaPlugin implements Listener {
 
     private VisualManager visualManager;
+    private SuffixManager suffixManager;
+    private VisualChatRenderer chatRenderer;
     private MiniMessage mm;
 
     @Override
     public void onEnable() {
         this.mm = MiniMessage.miniMessage();
         saveDefaultConfig();
-
         this.visualManager = new VisualManager();
-        getServer().getPluginManager().registerEvents(this, this);
+        this.suffixManager = new SuffixManager();
 
+        this.chatRenderer = new VisualChatRenderer(
+                visualManager,
+                suffixManager,
+                this
+        );
+        getServer().getPluginManager().registerEvents(this, this);
+        getCommand("suffix").setExecutor(new SuffixCommand(suffixManager));
         applyVisualsToOnlinePlayers();
     }
 
@@ -33,6 +43,7 @@ public final class Visual extends JavaPlugin implements Listener {
     public void onDisable() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             visualManager.remove(player);
+            suffixManager.remove(player.getUniqueId());
         }
     }
 
@@ -44,7 +55,7 @@ public final class Visual extends JavaPlugin implements Listener {
     @EventHandler
     public void onChat(AsyncChatEvent event) {
         if (getConfig().getBoolean("chat.enabled", true)) {
-            event.renderer(new VisualChatRenderer(this.visualManager, this));
+            event.renderer(chatRenderer);
         }
     }
 
@@ -53,16 +64,19 @@ public final class Visual extends JavaPlugin implements Listener {
     }
 
     public VisualData buildVisualDataFromConfig(FileConfiguration cfg) {
-        String prefix  = cfg.getString("visuals.prefix", "<gray>[<gradient:gray:dark_gray>Spieler</gradient>] ");
-        String suffix  = cfg.getString("visuals.suffix", "");
-        int    prio    = cfg.getInt("visuals.priority", 100);
-        String header  = cfg.getString("visuals.header", "<green>Willkommen auf KissenPvP!");
-        String footer  = cfg.getString("visuals.footer", "<gray>Du bist <b>Spieler</b>.");
+        String prefix = cfg.getString("visuals.prefix",
+                "<gray>[<gradient:gray:dark_gray>Spieler</gradient>] ");
+        String suffix = cfg.getString("visuals.suffix", "");
+        int priority = cfg.getInt("visuals.priority", 100);
+        String header = cfg.getString("visuals.header",
+                "<green>Willkommen auf KissenPvP!");
+        String footer = cfg.getString("visuals.footer",
+                "<gray>Du bist <b>Spieler</b>.");
 
         return new VisualData(
                 mm.deserialize(prefix),
                 mm.deserialize(suffix),
-                prio,
+                priority,
                 mm.deserialize(header),
                 mm.deserialize(footer)
         );
@@ -77,24 +91,24 @@ public final class Visual extends JavaPlugin implements Listener {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (label.equalsIgnoreCase("visual")) {
-            if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
-                if (sender.hasPermission("visual.reload")) {
-                    reloadConfig();
-                    applyVisualsToOnlinePlayers();
+        if (!command.getName().equalsIgnoreCase("visual")) return false;
+        if (args.length == 1 && args[0].equalsIgnoreCase("reload")) {
 
-                    sender.sendMessage(MiniMessage.miniMessage().deserialize(
-                            getConfig().getString("messages.reload-success",
-                                    "<gradient:#FF5E5E:#FFE300>ᴠɪꜱᴜᴀʟ</gradient> <gray>Konfiguration neu geladen.</gray>")
-                    ));
-                } else {
-                    sender.sendMessage(MiniMessage.miniMessage().deserialize(
-                            getConfig().getString("messages.no-permission",
-                                    "<gradient:#FF5E5E:#FFE300>ᴠɪꜱᴜᴀʟ</gradient> <red>Keine Berechtigung.</red>")
-                    ));
-                }
+            if (!sender.hasPermission("visual.reload")) {
+                sender.sendMessage(mm.deserialize(
+                        getConfig().getString("messages.no-permission",
+                                "<red>Keine Berechtigung.</red>")
+                ));
                 return true;
             }
+
+            reloadConfig();
+            applyVisualsToOnlinePlayers();
+            sender.sendMessage(mm.deserialize(
+                    getConfig().getString("messages.reload-success",
+                            "<green>Visual Konfiguration neu geladen.</green>")
+            ));
+            return true;
         }
         return false;
     }

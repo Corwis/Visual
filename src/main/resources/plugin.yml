@@ -8,7 +8,11 @@ commands:
     description: Visual-Command
     usage: /visual reload
     permission: visual.reload
+  suffix:
+    description: Suffix-Command
+    permission: kissen.command.suffix
 permissions:
   visual.reload:
     description: Reload the config
     default: op
+
